@@ -177,7 +177,7 @@ func main() {
 		case oldStatus := <-ss.ChangedState:
 			for _, chatID := range getSSChats(dynamo) {
 				log.Printf("Sending to chat %d", chatID)
-				msgText := fmt.Sprintf("Status changed from: '%s' to: '%s'", oldStatus, ss.Status)
+				msgText := fmt.Sprintf("'%s'\n=>\n'%s'", oldStatus, ss.Status)
 				msg := tgbotapi.NewMessage(chatID, msgText)
 				bot.SendMessage(msg)
 			}
