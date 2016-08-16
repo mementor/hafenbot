@@ -12,7 +12,6 @@ import (
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"os"
 )
 
 // ServerStatus represents current server status
@@ -147,7 +146,7 @@ func main() {
 			UserName := update.Message.From.UserName
 			UserID := update.Message.From.ID
 			ChatID := update.Message.Chat.ID
-			Text := strings.Split(strings.ToLower(update.Message.Text, "@"))[0]
+			Text := strings.Split(strings.ToLower(update.Message.Text), "@")[0]
 
 			if Text == "/status" {
 				reply := fmt.Sprintf("Status: %s", ss.Status)
