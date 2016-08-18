@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"strconv"
@@ -13,6 +14,8 @@ import (
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/boltdb/bolt"
+	"github.com/satori/go.uuid"
 )
 
 // ServerStatus represents current server status
@@ -123,8 +126,14 @@ func deleteFromSSList(dynamo *dynamodb.DynamoDB, chatID int) {
 }
 
 func main() {
-	botToken := flag.String("token", "", "Token to the bot")
+	botToken := flag.String("token", "", "Token to the bot from BotFather")
 	flag.Parse()
+
+	db, err := bolt.Open("my.db", 0600, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 
 	dynamo := dynamodb.New(&aws.Config{Region: aws.String("us-east-1")})
 	ss := &ServerStatus{}
@@ -134,7 +143,7 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-	bot.Debug = true
+	bot.Debug = false
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 	ucfg := tgbotapi.NewUpdate(0)
 	ucfg.Timeout = 60
@@ -147,40 +156,88 @@ func main() {
 			UserName := update.Message.From.UserName
 			UserID := update.Message.From.ID
 			ChatID := update.Message.Chat.ID
-			Text := strings.Split(strings.ToLower(update.Message.Text), "@")[0]
+			command := strings.Split(strings.Split(strings.ToLower(update.Message.Text), "@")[0], " ")[0]
 
-			if Text == "/status" {
+			if command == "/status" {
 				reply := fmt.Sprintf("Status: %s", ss.Status)
-				msg := tgbotapi.NewMessage(ChatID, reply)
-				bot.SendMessage(msg)
-			} else if Text == "/online" {
+				bot.SendMessage(tgbotapi.NewMessage(ChatID, reply))
+			} else if command == "/online" {
 				reply := fmt.Sprintf("Online: %s", ss.Online)
-				msg := tgbotapi.NewMessage(ChatID, reply)
-				bot.SendMessage(msg)
-			} else if Text == "/statuson" {
+				bot.SendMessage(tgbotapi.NewMessage(ChatID, reply))
+			} else if command == "/statuson" {
 				appendToSSList(dynamo, ChatID)
 				reply := "Now you will receive server statuses on server change\n/statusoff to disable"
-				msg := tgbotapi.NewMessage(ChatID, reply)
-				bot.SendMessage(msg)
-			} else if Text == "/statusoff" {
+				bot.SendMessage(tgbotapi.NewMessage(ChatID, reply))
+			} else if command == "/statusoff" {
 				deleteFromSSList(dynamo, ChatID)
 				reply := "Now you will NOT receive server statuses on server change\n/statuson to enable"
-				msg := tgbotapi.NewMessage(ChatID, reply)
-				bot.SendMessage(msg)
+				bot.SendMessage(tgbotapi.NewMessage(ChatID, reply))
+			} else if command == "/timer" {
+				strs := strings.Split(update.Message.Text, " ")
+				body := strings.Join(strs[1:len(strs)-1], " ")
+				delay := strs[len(strs)-1]
+				reply := ""
+				duration, err := time.ParseDuration(delay)
+				if err != nil {
+					reply = fmt.Sprintf("error: '%s'\n", err)
+				} else {
+					location := time.FixedZone("MSK", 3*60*60)
+					fireAt := time.Now().In(location).Add(duration)
+					reply = fmt.Sprintf("Timer fire at: '%s'\n%s", fireAt.Format("2006-01-02 15:04:05 MST"), body)
+					db.Update(func(tx *bolt.Tx) error {
+						parentBucket, erro := tx.CreateBucketIfNotExists([]byte("Timers"))
+						if erro != nil {
+							fmt.Printf("create parentBucket error: %s", erro)
+							return erro
+						}
+						chatBucket, erro := parentBucket.CreateBucketIfNotExists([]byte(fmt.Sprintf("%d", ChatID)))
+						if erro != nil {
+							fmt.Printf("create chatBucket error: %s", erro)
+							return erro
+						}
+						u1 := uuid.NewV4()
+						fmt.Printf("uuid: %s\n", u1)
+						err = chatBucket.Put([]byte(fmt.Sprintf("%d_%s", fireAt.Unix(), u1)), []byte(body))
+						if err != nil {
+							return err
+						}
+						return nil
+					})
+				}
+				bot.SendMessage(tgbotapi.NewMessage(ChatID, reply))
+			} else if command == "/timerlist" {
+				db.View(func(tx *bolt.Tx) error {
+					parentBucket := tx.Bucket([]byte("Timers"))
+					if parentBucket == nil {
+						fmt.Println("parentBucket is nil")
+						bot.SendMessage(tgbotapi.NewMessage(ChatID, "parentBucket is nil"))
+					}
+					chatBucket := parentBucket.Bucket([]byte(fmt.Sprintf("%d", ChatID)))
+					if chatBucket == nil {
+						fmt.Println("chatBucket is nil")
+						bot.SendMessage(tgbotapi.NewMessage(ChatID, "no timers"))
+						return nil
+					}
+					var reply bytes.Buffer
+					chatBucket.ForEach(func(k, v []byte) error {
+						reply.WriteString(fmt.Sprintf("key=%s, value=%s\n", k, v))
+						return nil
+					})
+					bot.SendMessage(tgbotapi.NewMessage(ChatID, reply.String()))
+					return nil
+				})
 			} else {
-				reply := Text
-				msg := tgbotapi.NewMessage(ChatID, reply)
-				bot.SendMessage(msg)
+				reply := fmt.Sprintf("Unknown command: '%s'", command)
+				bot.SendMessage(tgbotapi.NewMessage(ChatID, reply))
 			}
-			log.Printf("[%s] <%d> (%d) %s", UserName, ChatID, UserID, Text)
+			log.Printf("[%s] <%d> (%d) %s", UserName, ChatID, UserID, update.Message.Text)
 		case <-ticker:
 			go checkHealth(ss)
 		case oldStatus := <-ss.ChangedState:
 			for _, chatID := range getSSChats(dynamo) {
 				log.Printf("Sending to chat %d", chatID)
 				msgText := fmt.Sprintf("'%s'\n=>\n'%s'", oldStatus, ss.Status)
-				msg := tgbotapi.NewMessage(chatID, msgText)
-				bot.SendMessage(msg)
+				bot.SendMessage(tgbotapi.NewMessage(chatID, msgText))
 			}
 		}
 	}
