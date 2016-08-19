@@ -340,7 +340,9 @@ func main() {
 			command := strings.Split(strings.ToLower(strs[0]), "@")[0]
 			body := strings.Join(strs[1:], " ")
 
-			if command == "/status" {
+			if command == "" {
+				continue
+			} else if command == "/status" {
 				reply := fmt.Sprintf("Status: %s", ss.Status)
 				msg := tgbotapi.NewMessage(ChatID, reply)
 				bot.SendMessage(msg)
@@ -359,6 +361,10 @@ func main() {
 				msg := tgbotapi.NewMessage(ChatID, reply)
 				bot.SendMessage(msg)
 			} else if command == "/timer" {
+				if len(strs) < 3 {
+					bot.SendMessage(tgbotapi.NewMessage(ChatID, "send me timer in following format:\n /timer text 15m"))
+					continue
+				}
 				description := strings.Join(strs[1:len(strs)-1], " ")
 				delay := strs[len(strs)-1]
 				reply := ""
@@ -377,7 +383,7 @@ func main() {
 						log.Println(err.Error())
 						reply = fmt.Sprintf("error:\n%s", err)
 					} else {
-						reply = fmt.Sprintf("Timer fire at %s", fireAt.Format("2006-01-02 15:04:05 MST"))
+						reply = fmt.Sprintf("⏲ fire at %s", fireAt.In(location).Format("2006-01-02 15:04:05 MST"))
 						reload <- true
 					}
 				}
@@ -389,7 +395,7 @@ func main() {
 					reply.WriteString("No timers here yet")
 				} else {
 					for i, t := range timers {
-						reply.WriteString(fmt.Sprintf("⏰ %s\n%s\n%s\n\n", t.Time.In(location).Format("2006-01-02 15:04:05 MST"), t.Body, t.ID))
+						reply.WriteString(fmt.Sprintf("⏲ %s\n%s\n%s\n\n", t.Time.In(location).Format("2006-01-02 15:04:05 MST"), t.Body, t.ID))
 						fmt.Printf("timer[%d]: '%v'\n", i, t)
 					}
 				}
