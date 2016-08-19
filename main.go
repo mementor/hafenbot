@@ -110,7 +110,7 @@ func forTheWatch(dynamo *dynamodb.DynamoDB, bot *tgbotapi.BotAPI, reload chan bo
 }
 
 func getSSChats(dynamo *dynamodb.DynamoDB) (chats []int) {
-	log.Println("[getSSChats]: Stub!")
+	// log.Println("[getSSChats]: Stub!")
 	dyParams := &dynamodb.GetItemInput{
 		TableName: aws.String("HafenTable"),
 		Key: map[string]*dynamodb.AttributeValue{
@@ -136,7 +136,7 @@ func getSSChats(dynamo *dynamodb.DynamoDB) (chats []int) {
 }
 
 func appendToSSList(dynamo *dynamodb.DynamoDB, chatID int) {
-	log.Println("[appendToSSList]: Stub!")
+	// log.Println("[appendToSSList]: Stub!")
 	chatIDStr := fmt.Sprintf("%d", chatID)
 	dyParams := &dynamodb.UpdateItemInput{
 		Key: map[string]*dynamodb.AttributeValue{
@@ -158,7 +158,7 @@ func appendToSSList(dynamo *dynamodb.DynamoDB, chatID int) {
 }
 
 func deleteFromSSList(dynamo *dynamodb.DynamoDB, chatID int) {
-	log.Println("[appendToSSList]: Stub!")
+	// log.Println("[appendToSSList]: Stub!")
 	chatIDStr := fmt.Sprintf("%d", chatID)
 	dyParams := &dynamodb.UpdateItemInput{
 		Key: map[string]*dynamodb.AttributeValue{
@@ -180,7 +180,7 @@ func deleteFromSSList(dynamo *dynamodb.DynamoDB, chatID int) {
 }
 
 func saveTimer(dynamo *dynamodb.DynamoDB, timer *Timer) error {
-	log.Println("[saveTimer]: Stub!")
+	// log.Println("[saveTimer]: Stub!")
 	dyParams := &dynamodb.PutItemInput{
 		TableName: aws.String("HafenAlarms"),
 		Item: map[string]*dynamodb.AttributeValue{
@@ -214,7 +214,7 @@ func listChatTimers(dynamo *dynamodb.DynamoDB, ChatID int) (timers []*Timer, err
 }
 
 func listTimersByChatAndID(dynamo *dynamodb.DynamoDB, ChatID int, ID string) (timers []*Timer, err error) {
-	log.Printf("[listTimers]: ChatID: %d, ID: %s\n", ChatID, ID)
+	// log.Printf("[listTimers]: ChatID: %d, ID: %s\n", ChatID, ID)
 	dyParams := &dynamodb.QueryInput{
 		TableName:              aws.String("HafenAlarms"),
 		IndexName:              aws.String("chatid-id-index"),
@@ -245,7 +245,7 @@ func listTimersByChatAndID(dynamo *dynamodb.DynamoDB, ChatID int, ID string) (ti
 }
 
 func getNearestTimer(dynamo *dynamodb.DynamoDB) (timer *Timer, err error) {
-	log.Println("[getNearestTimer]: Stub!")
+	// log.Println("[getNearestTimer]: Stub!")
 	// epoch := time.Now().Unix()
 	dyParams := &dynamodb.QueryInput{
 		TableName:              aws.String("HafenAlarms"),
@@ -282,7 +282,7 @@ func getNearestTimer(dynamo *dynamodb.DynamoDB) (timer *Timer, err error) {
 }
 
 func deleteTimer(dynamo *dynamodb.DynamoDB, ChatID int, ID string) error {
-	log.Printf("[deleteTimer]: ChatID: %d, ID: %s\n", ChatID, ID)
+	// log.Printf("[deleteTimer]: ChatID: %d, ID: %s\n", ChatID, ID)
 	timers, err := listTimersByChatAndID(dynamo, ChatID, ID)
 	if err != nil {
 		return err
