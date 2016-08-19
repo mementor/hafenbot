@@ -36,17 +36,17 @@ type Timer struct {
 
 var location *time.Location
 
-func checkHealth(ss *ServerStatus) (status, online string) {
+func checkHealth(ss *ServerStatus) {
 	doc, err := goquery.NewDocument("http://www.havenandhearth.com/portal/")
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	doc.Find(".vertdiv").Eq(1).Each(func(i int, s *goquery.Selection) {
-		status = s.Find("h2").Text()
-		online = s.Find("p").Eq(0).Text()
-		log.Printf("Status is: %s", status)
-		log.Printf("Online is: %s", online)
+		status := s.Find("h2").Text()
+		online := s.Find("p").Eq(0).Text()
+		// log.Printf("Status is: %s", status)
+		// log.Printf("Online is: %s", online)
 		if status != "" {
 			if online == "" {
 				ss.Online = "unknown"
@@ -77,9 +77,7 @@ func forTheWatch(dynamo *dynamodb.DynamoDB, bot *tgbotapi.BotAPI, reload chan bo
 	for {
 		select {
 		case <-reload:
-			log.Println("[FTW]: got signal, wait...")
 			wg.Wait()
-			log.Println("[FTW]: lets rock, add 1")
 			wg.Add(1)
 			timer, err := getNearestTimer(dynamo)
 			if err != nil {
@@ -106,7 +104,6 @@ func forTheWatch(dynamo *dynamodb.DynamoDB, bot *tgbotapi.BotAPI, reload chan bo
 			}
 			wg.Done()
 		case <-ticker:
-			log.Println("[FTW]: ticker tick")
 			reload <- true
 		}
 	}
