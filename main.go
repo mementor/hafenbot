@@ -218,17 +218,16 @@ func listTimersByChatAndID(dynamo *dynamodb.DynamoDB, ChatID int, ID string) (ti
 	// log.Printf("[listTimers]: ChatID: %d, ID: %s\n", ChatID, ID)
 	dyParams := &dynamodb.QueryInput{
 		TableName:              aws.String("HafenAlarms"),
-		IndexName:              aws.String("chatid-id-index"),
+		IndexName:              aws.String("chatid-dt-index"),
 		KeyConditionExpression: aws.String("chatid = :chtid"),
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
 			":chtid": {
 				N: aws.String(fmt.Sprintf("%d", ChatID)),
 			},
 		},
-		ScanIndexForward: aws.Bool(false),
 	}
 	if ID != "" {
-		dyParams.KeyConditionExpression = aws.String("chatid = :chtid and id = :id")
+		dyParams.FilterExpression = aws.String("id = :id")
 		dyParams.ExpressionAttributeValues[":id"] = &dynamodb.AttributeValue{S: aws.String(ID)}
 	}
 	resp, err := dynamo.Query(dyParams)
@@ -366,13 +365,16 @@ func parseDuration(str string) (dur time.Duration, err error) {
 
 func parseDateTime(str string) (t time.Time, err error) {
 	// 2006-01-02 15:04:05 MST
+	fmt.Printf("parseDateTime\n")
 	fullFormats := []string{"20060102 15:04", "20060102 15:04:05", "02.01.2006 15:04", "02.01.2006 15:04:05"}
 	partFormats := []string{"15:04", "15:04:05"}
 	for _, format := range fullFormats {
 		t, err := time.ParseInLocation(format, str, location)
 		if err == nil {
+			fmt.Printf("parsed time: %s\n", t)
 			return t, nil
 		}
+		fmt.Printf("err1: %s\n", err)
 	}
 	for _, format := range partFormats {
 		tim, err := time.ParseInLocation(format, str, location)
@@ -442,7 +444,7 @@ func main() {
 				reply := "Now you will NOT receive server statuses on server change\n/statuson to enable"
 				msg := tgbotapi.NewMessage(ChatID, reply)
 				bot.SendMessage(msg)
-			} else if command == "/timer" {
+			} else if command == "/timer" { // dirty shit
 				if len(strs) < 3 {
 					bot.SendMessage(tgbotapi.NewMessage(ChatID, "send me timer in following format:\n /timer text 15m"))
 					continue
@@ -456,9 +458,11 @@ func main() {
 				var fireAt time.Time
 				if err != nil {
 					fireAt, err = parseDateTime(delayTwoWords)
+					description = strings.Join(strs[1:len(strs)-2], " ")
 					if err != nil {
 						fmt.Printf("err1: %s\n", err)
 						fireAt, err = parseDateTime(delay)
+						description = strings.Join(strs[1:len(strs)-1], " ")
 						if err != nil {
 							reply = fmt.Sprintf("error: '%s'\n", err)
 						}
@@ -472,19 +476,24 @@ func main() {
 					fireAt = time.Now().Add(duration)
 					ok = true
 				}
+
 				if ok {
-					timer := &Timer{
-						Time:   fireAt,
-						Body:   description,
-						ChatID: ChatID,
-					}
-					err = saveTimer(dynamo, timer)
-					if err != nil {
-						log.Println(err.Error())
-						reply = fmt.Sprintf("error:\n%s", err)
+					if description == "" {
+						reply = "error: timer have no text"
 					} else {
-						reply = fmt.Sprintf("⏲ fire at %s", fireAt.In(location).Format("2006-01-02 15:04:05 MST"))
-						reload <- true
+						timer := &Timer{
+							Time:   fireAt,
+							Body:   description,
+							ChatID: ChatID,
+						}
+						err = saveTimer(dynamo, timer)
+						if err != nil {
+							log.Println(err.Error())
+							reply = fmt.Sprintf("error:\n%s", err)
+						} else {
+							reply = fmt.Sprintf("⏲ fire at %s", fireAt.In(location).Format("2006-01-02 15:04:05 MST"))
+							reload <- true
+						}
 					}
 				}
 				bot.SendMessage(tgbotapi.NewMessage(ChatID, reply))
