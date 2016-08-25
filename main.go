@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -224,6 +225,7 @@ func listTimersByChatAndID(dynamo *dynamodb.DynamoDB, ChatID int, ID string) (ti
 				N: aws.String(fmt.Sprintf("%d", ChatID)),
 			},
 		},
+		ScanIndexForward: aws.Bool(false),
 	}
 	if ID != "" {
 		dyParams.KeyConditionExpression = aws.String("chatid = :chtid and id = :id")
@@ -302,8 +304,88 @@ func deleteTimer(dynamo *dynamodb.DynamoDB, ChatID int, ID string) error {
 	if err != nil {
 		return err
 	}
-	// log.Println(resp)
 	return nil
+}
+
+func parseDuration(str string) (dur time.Duration, err error) {
+	var overall int
+	reWeeks := regexp.MustCompile("^(\\d(.\\d+)?)w$")
+	reDays := regexp.MustCompile("^(\\d(.\\d+)?)d$")
+	reHours := regexp.MustCompile("^(\\d(.\\d+)?)h$")
+	reMinutes := regexp.MustCompile("^(\\d(.\\d+)?)m$")
+	reSeconds := regexp.MustCompile("^(\\d(.\\d+)?)s$")
+
+	str = regexp.MustCompile("([wdhms])(\\d)").ReplaceAllString(str, "$1,$2")
+	fmt.Printf("replaced: %s\n", str)
+	tockens := strings.Split(str, ",")
+	fmt.Printf("tockens: %s\n", tockens)
+	for _, to := range tockens {
+		if reWeeks.MatchString(to) {
+			weeks, err1 := strconv.ParseFloat(reWeeks.ReplaceAllString(to, "$1"), 10)
+			if err1 != nil {
+				fmt.Printf("err: %s", err)
+				return dur, err1
+			}
+			overall += int(weeks * 7 * 24 * 60 * 60)
+		} else if reDays.MatchString(to) {
+			days, err1 := strconv.ParseFloat(reDays.ReplaceAllString(to, "$1"), 10)
+			if err1 != nil {
+				fmt.Printf("err: %s", err)
+				return dur, err1
+			}
+			overall += int(days * 24 * 60 * 60)
+		} else if reHours.MatchString(to) {
+			hours, err1 := strconv.ParseFloat(reHours.ReplaceAllString(to, "$1"), 10)
+			if err1 != nil {
+				fmt.Printf("err: %s", err)
+				return dur, err1
+			}
+			overall += int(hours * 60 * 60)
+		} else if reMinutes.MatchString(to) {
+			minutes, err1 := strconv.ParseFloat(reMinutes.ReplaceAllString(to, "$1"), 10)
+			if err1 != nil {
+				fmt.Printf("err: %s", err)
+				return dur, err1
+			}
+			overall += int(minutes * 60)
+		} else if reSeconds.MatchString(to) {
+			seconds, err1 := strconv.ParseFloat(reSeconds.ReplaceAllString(to, "$1"), 10)
+			if err1 != nil {
+				fmt.Printf("err: %s", err)
+				return dur, err1
+			}
+			overall += int(seconds)
+		}
+	}
+	if overall == 0 {
+		return dur, errors.New("Cant parse duration")
+	}
+	dur, err = time.ParseDuration(fmt.Sprintf("%ds", overall))
+	return
+}
+
+func parseDateTime(str string) (t time.Time, err error) {
+	// 2006-01-02 15:04:05 MST
+	fullFormats := []string{"20060102 15:04", "20060102 15:04:05", "02.01.2006 15:04", "02.01.2006 15:04:05"}
+	partFormats := []string{"15:04", "15:04:05"}
+	for _, format := range fullFormats {
+		t, err := time.ParseInLocation(format, str, location)
+		if err == nil {
+			return t, nil
+		}
+	}
+	for _, format := range partFormats {
+		tim, err := time.ParseInLocation(format, str, location)
+		if err == nil {
+			now := time.Now()
+			parsedToday := time.Date(now.Year(), now.Month(), now.Day(), tim.Hour(), tim.Minute(), tim.Second(), 0, location)
+			if time.Now().After(parsedToday) {
+				parsedToday = parsedToday.Add(24 * time.Hour)
+			}
+			return parsedToday, nil
+		}
+	}
+	return time.Time{}, errors.New("Cant parse datetime")
 }
 
 func main() {
@@ -366,13 +448,31 @@ func main() {
 					continue
 				}
 				description := strings.Join(strs[1:len(strs)-1], " ")
+				delayTwoWords := strings.Join(strs[len(strs)-2:], " ")
 				delay := strs[len(strs)-1]
 				reply := ""
-				duration, err := time.ParseDuration(delay)
+				ok := false
+				duration, err := parseDuration(delay)
+				var fireAt time.Time
 				if err != nil {
-					reply = fmt.Sprintf("error: '%s'\n", err)
+					fireAt, err = parseDateTime(delayTwoWords)
+					if err != nil {
+						fmt.Printf("err1: %s\n", err)
+						fireAt, err = parseDateTime(delay)
+						if err != nil {
+							reply = fmt.Sprintf("error: '%s'\n", err)
+						}
+					}
+					if fireAt.Before(time.Now()) {
+						reply = fmt.Sprintf("error: time is in past")
+					} else {
+						ok = true
+					}
 				} else {
-					fireAt := time.Now().Add(duration)
+					fireAt = time.Now().Add(duration)
+					ok = true
+				}
+				if ok {
 					timer := &Timer{
 						Time:   fireAt,
 						Body:   description,
