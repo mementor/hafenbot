@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/satori/go.uuid"
+  "github.com/aws/aws-sdk-go/aws/session"
 )
 
 // ServerStatus represents current server status
@@ -31,7 +32,7 @@ type ServerStatus struct {
 type Timer struct {
 	Time   time.Time
 	Body   string
-	ChatID int
+	ChatID int64
 	ID     string
 }
 
@@ -90,7 +91,7 @@ func forTheWatch(dynamo *dynamodb.DynamoDB, bot *tgbotapi.BotAPI, reload chan bo
 						log.Println(err)
 					} else {
 						reply = fmt.Sprintf("⏰ %s\n%s", timer.Time.In(location).Format("2006-01-02 15:04:05 MST"), timer.Body)
-						bot.SendMessage(tgbotapi.NewMessage(timer.ChatID, reply))
+						bot.Send(tgbotapi.NewMessage(int64(timer.ChatID), reply))
 						reload <- true
 					}
 				} else {
@@ -110,7 +111,7 @@ func forTheWatch(dynamo *dynamodb.DynamoDB, bot *tgbotapi.BotAPI, reload chan bo
 	}
 }
 
-func getSSChats(dynamo *dynamodb.DynamoDB) (chats []int) {
+func getSSChats(dynamo *dynamodb.DynamoDB) (chats []int64) {
 	// log.Println("[getSSChats]: Stub!")
 	dyParams := &dynamodb.GetItemInput{
 		TableName: aws.String("HafenTable"),
@@ -128,7 +129,7 @@ func getSSChats(dynamo *dynamodb.DynamoDB) (chats []int) {
 	fmt.Println(resp)
 
 	for _, chatSTR := range resp.Item["Chats"].NS {
-		chatID, _ := strconv.Atoi(*chatSTR)
+		chatID, _ := strconv.ParseInt(*chatSTR, 10, 64)
 		log.Printf("Sending to: %d", chatID)
 		chats = append(chats, chatID)
 	}
@@ -136,7 +137,7 @@ func getSSChats(dynamo *dynamodb.DynamoDB) (chats []int) {
 	return chats
 }
 
-func appendToSSList(dynamo *dynamodb.DynamoDB, chatID int) {
+func appendToSSList(dynamo *dynamodb.DynamoDB, chatID int64) {
 	// log.Println("[appendToSSList]: Stub!")
 	chatIDStr := fmt.Sprintf("%d", chatID)
 	dyParams := &dynamodb.UpdateItemInput{
@@ -158,7 +159,7 @@ func appendToSSList(dynamo *dynamodb.DynamoDB, chatID int) {
 	// log.Println(resp)
 }
 
-func deleteFromSSList(dynamo *dynamodb.DynamoDB, chatID int) {
+func deleteFromSSList(dynamo *dynamodb.DynamoDB, chatID int64) {
 	// log.Println("[appendToSSList]: Stub!")
 	chatIDStr := fmt.Sprintf("%d", chatID)
 	dyParams := &dynamodb.UpdateItemInput{
@@ -210,11 +211,11 @@ func saveTimer(dynamo *dynamodb.DynamoDB, timer *Timer) error {
 	return nil
 }
 
-func listChatTimers(dynamo *dynamodb.DynamoDB, ChatID int) (timers []*Timer, err error) {
+func listChatTimers(dynamo *dynamodb.DynamoDB, ChatID int64) (timers []*Timer, err error) {
 	return listTimersByChatAndID(dynamo, ChatID, "")
 }
 
-func listTimersByChatAndID(dynamo *dynamodb.DynamoDB, ChatID int, ID string) (timers []*Timer, err error) {
+func listTimersByChatAndID(dynamo *dynamodb.DynamoDB, ChatID int64, ID string) (timers []*Timer, err error) {
 	// log.Printf("[listTimers]: ChatID: %d, ID: %s\n", ChatID, ID)
 	dyParams := &dynamodb.QueryInput{
 		TableName:              aws.String("HafenAlarms"),
@@ -236,7 +237,7 @@ func listTimersByChatAndID(dynamo *dynamodb.DynamoDB, ChatID int, ID string) (ti
 	}
 	// log.Println(resp)
 	for _, items := range resp.Items {
-		chatid, _ := strconv.Atoi(*items["chatid"].N)
+		chatid, _ := strconv.ParseInt(*items["chatid"].N, 10, 64)
 		timestamp, _ := strconv.ParseInt(*items["dt"].N, 10, 64)
 		body := *items["body"].S
 		id := *items["id"].S
@@ -268,7 +269,7 @@ func getNearestTimer(dynamo *dynamodb.DynamoDB) (timer *Timer, err error) {
 	}
 	// log.Println(resp)
 	for _, items := range resp.Items {
-		chatid, _ := strconv.Atoi(*items["chatid"].N)
+		chatid, _ := strconv.ParseInt(*items["chatid"].N, 10, 64)
 		timestamp, _ := strconv.ParseInt(*items["dt"].N, 10, 64)
 		body := *items["body"].S
 		id := *items["id"].S
@@ -282,7 +283,7 @@ func getNearestTimer(dynamo *dynamodb.DynamoDB) (timer *Timer, err error) {
 	return
 }
 
-func deleteTimer(dynamo *dynamodb.DynamoDB, ChatID int, ID string) error {
+func deleteTimer(dynamo *dynamodb.DynamoDB, ChatID int64, ID string) error {
 	// log.Printf("[deleteTimer]: ChatID: %d, ID: %s\n", ChatID, ID)
 	timers, err := listTimersByChatAndID(dynamo, ChatID, ID)
 	if err != nil {
@@ -308,11 +309,11 @@ func deleteTimer(dynamo *dynamodb.DynamoDB, ChatID int, ID string) error {
 
 func parseDuration(str string) (dur time.Duration, err error) {
 	var overall int
-	reWeeks := regexp.MustCompile("^(\\d(.\\d+)?)w$")
-	reDays := regexp.MustCompile("^(\\d(.\\d+)?)d$")
-	reHours := regexp.MustCompile("^(\\d(.\\d+)?)h$")
-	reMinutes := regexp.MustCompile("^(\\d(.\\d+)?)m$")
-	reSeconds := regexp.MustCompile("^(\\d(.\\d+)?)s$")
+	reWeeks := regexp.MustCompile("^(\\d+(.\\d+)?)w$")
+	reDays := regexp.MustCompile("^(\\d+(.\\d+)?)d$")
+	reHours := regexp.MustCompile("^(\\d+(.\\d+)?)h$")
+	reMinutes := regexp.MustCompile("^(\\d+(.\\d+)?)m$")
+	reSeconds := regexp.MustCompile("^(\\d+(.\\d+)?)s$")
 
 	str = regexp.MustCompile("([wdhms])(\\d)").ReplaceAllString(str, "$1,$2")
 	fmt.Printf("replaced: %s\n", str)
@@ -350,15 +351,18 @@ func parseDuration(str string) (dur time.Duration, err error) {
 		} else if reSeconds.MatchString(to) {
 			seconds, err1 := strconv.ParseFloat(reSeconds.ReplaceAllString(to, "$1"), 10)
 			if err1 != nil {
-				fmt.Printf("err: %s", err)
+				log.Printf("err: %s", err)
 				return dur, err1
-			}
+      }
 			overall += int(seconds)
 		}
 	}
 	if overall == 0 {
+  //  log.Printf("ret overall: %d", overall)
 		return dur, errors.New("Cant parse duration")
-	}
+	//} else {
+  //  log.Printf("overall: %d", overall)
+  }
 	dur, err = time.ParseDuration(fmt.Sprintf("%ds", overall))
 	return
 }
@@ -397,7 +401,12 @@ func main() {
 
 	location = time.FixedZone("MSK", 3*60*60)
 
-	dynamo := dynamodb.New(&aws.Config{Region: aws.String("us-east-1")})
+  sess, err := session.NewSession(&aws.Config{Region: aws.String("us-east-1")})
+  if err != nil {
+    log.Panic(err)
+    return
+  }
+  dynamo := dynamodb.New(sess)
 	ss := &ServerStatus{}
 	ss.ChangedState = make(chan string)
 	bot, err := tgbotapi.NewBotAPI(*botToken)
@@ -408,7 +417,11 @@ func main() {
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 	ucfg := tgbotapi.NewUpdate(0)
 	ucfg.Timeout = 60
-	bot.UpdatesChan(ucfg)
+  updates, err := bot.GetUpdatesChan(ucfg)
+  if err != nil {
+    log.Panic(err)
+    return
+  }
 	ticker := time.Tick(30 * time.Second)
 	reload := make(chan bool, 100)
 	go checkHealth(ss)
@@ -416,7 +429,10 @@ func main() {
 
 	for {
 		select {
-		case update := <-bot.Updates:
+		case update := <-updates:
+      if update.Message == nil {
+        continue
+      }
 			UserName := update.Message.From.UserName
 			UserID := update.Message.From.ID
 			ChatID := update.Message.Chat.ID
@@ -429,24 +445,24 @@ func main() {
 			} else if command == "/status" {
 				reply := fmt.Sprintf("Status: %s", ss.Status)
 				msg := tgbotapi.NewMessage(ChatID, reply)
-				bot.SendMessage(msg)
+				bot.Send(msg)
 			} else if command == "/online" {
 				reply := fmt.Sprintf("Online: %s", ss.Online)
 				msg := tgbotapi.NewMessage(ChatID, reply)
-				bot.SendMessage(msg)
+				bot.Send(msg)
 			} else if command == "/statuson" {
 				appendToSSList(dynamo, ChatID)
 				reply := "Now you will receive server statuses on server change\n/statusoff to disable"
 				msg := tgbotapi.NewMessage(ChatID, reply)
-				bot.SendMessage(msg)
+				bot.Send(msg)
 			} else if command == "/statusoff" {
 				deleteFromSSList(dynamo, ChatID)
 				reply := "Now you will NOT receive server statuses on server change\n/statuson to enable"
 				msg := tgbotapi.NewMessage(ChatID, reply)
-				bot.SendMessage(msg)
+				bot.Send(msg)
 			} else if command == "/timer" { // dirty shit
 				if len(strs) < 3 {
-					bot.SendMessage(tgbotapi.NewMessage(ChatID, "send me timer in following format:\n /timer text 15m"))
+					bot.Send(tgbotapi.NewMessage(ChatID, "send me timer in following format:\n /timer text 15m"))
 					continue
 				}
 				description := strings.Join(strs[1:len(strs)-1], " ")
@@ -496,7 +512,7 @@ func main() {
 						}
 					}
 				}
-				bot.SendMessage(tgbotapi.NewMessage(ChatID, reply))
+				bot.Send(tgbotapi.NewMessage(ChatID, reply))
 			} else if command == "/timerlist" {
 				timers, _ := listChatTimers(dynamo, ChatID)
 				var reply bytes.Buffer
@@ -508,17 +524,17 @@ func main() {
 						fmt.Printf("timer[%d]: '%v'\n", i, t)
 					}
 				}
-				bot.SendMessage(tgbotapi.NewMessage(ChatID, reply.String()))
+				bot.Send(tgbotapi.NewMessage(ChatID, reply.String()))
 			} else if command == "/timerdel" {
 				err := deleteTimer(dynamo, ChatID, body)
 				if err != nil {
-					bot.SendMessage(tgbotapi.NewMessage(ChatID, err.Error()))
+					bot.Send(tgbotapi.NewMessage(ChatID, err.Error()))
 				}
-				bot.SendMessage(tgbotapi.NewMessage(ChatID, "Done!"))
+				bot.Send(tgbotapi.NewMessage(ChatID, "Done!"))
 			} else {
 				reply := fmt.Sprintf("Unknown command: '%s'", command)
 				msg := tgbotapi.NewMessage(ChatID, reply)
-				bot.SendMessage(msg)
+				bot.Send(msg)
 			}
 			log.Printf("[%s] <%d> (%d) %s", UserName, ChatID, UserID, update.Message.Text)
 		case <-ticker:
@@ -528,7 +544,7 @@ func main() {
 				log.Printf("Sending to chat %d", chatID)
 				msgText := fmt.Sprintf("'%s'\n=>\n'%s'", oldStatus, ss.Status)
 				msg := tgbotapi.NewMessage(chatID, msgText)
-				bot.SendMessage(msg)
+				bot.Send(msg)
 			}
 		}
 	}
