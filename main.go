@@ -16,9 +16,9 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/satori/go.uuid"
-  "github.com/aws/aws-sdk-go/aws/session"
 )
 
 // ServerStatus represents current server status
@@ -353,16 +353,16 @@ func parseDuration(str string) (dur time.Duration, err error) {
 			if err1 != nil {
 				log.Printf("err: %s", err)
 				return dur, err1
-      }
+			}
 			overall += int(seconds)
 		}
 	}
 	if overall == 0 {
-  //  log.Printf("ret overall: %d", overall)
+		//  log.Printf("ret overall: %d", overall)
 		return dur, errors.New("Cant parse duration")
-	//} else {
-  //  log.Printf("overall: %d", overall)
-  }
+		//} else {
+		//  log.Printf("overall: %d", overall)
+	}
 	dur, err = time.ParseDuration(fmt.Sprintf("%ds", overall))
 	return
 }
@@ -401,12 +401,12 @@ func main() {
 
 	location = time.FixedZone("MSK", 3*60*60)
 
-  sess, err := session.NewSession(&aws.Config{Region: aws.String("us-east-1")})
-  if err != nil {
-    log.Panic(err)
-    return
-  }
-  dynamo := dynamodb.New(sess)
+	sess, err := session.NewSession(&aws.Config{Region: aws.String("us-east-1")})
+	if err != nil {
+		log.Panic(err)
+		return
+	}
+	dynamo := dynamodb.New(sess)
 	ss := &ServerStatus{}
 	ss.ChangedState = make(chan string)
 	bot, err := tgbotapi.NewBotAPI(*botToken)
@@ -417,11 +417,11 @@ func main() {
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 	ucfg := tgbotapi.NewUpdate(0)
 	ucfg.Timeout = 60
-  updates, err := bot.GetUpdatesChan(ucfg)
-  if err != nil {
-    log.Panic(err)
-    return
-  }
+	updates, err := bot.GetUpdatesChan(ucfg)
+	if err != nil {
+		log.Panic(err)
+		return
+	}
 	ticker := time.Tick(30 * time.Second)
 	reload := make(chan bool, 100)
 	go checkHealth(ss)
@@ -430,9 +430,9 @@ func main() {
 	for {
 		select {
 		case update := <-updates:
-      if update.Message == nil {
-        continue
-      }
+			if update.Message == nil {
+				continue
+			}
 			UserName := update.Message.From.UserName
 			UserID := update.Message.From.ID
 			ChatID := update.Message.Chat.ID
