@@ -49,8 +49,6 @@ func checkHealth(ss *ServerStatus) {
 	doc.Find(".vertdiv").Eq(1).Each(func(i int, s *goquery.Selection) {
 		status := s.Find("h2").Text()
 		online := s.Find("p").Eq(0).Text()
-		// log.Printf("Status is: %s", status)
-		// log.Printf("Online is: %s", online)
 		if status != "" {
 			if online == "" {
 				ss.Online = "unknown"
@@ -113,17 +111,6 @@ func forTheWatch(store storage.Storage, bot *tgbotapi.BotAPI, reload chan bool) 
 						log.Println(err)
 					} else {
 						reply = fmt.Sprintf("⏰ %s\n%s", timer.At.In(location).Format("2006-01-02 15:04:05 MST"), timer.Body)
-						// data := undone
-						// markup := tgbotapi.InlineKeyboardMarkup{
-						// 	InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
-						// 		[]tgbotapi.InlineKeyboardButton{
-						// 			tgbotapi.InlineKeyboardButton{
-						// 				Text:         "✗",
-						// 				CallbackData: &data,
-						// 			},
-						// 		},
-						// 	},
-						// }
 						msg := tgbotapi.NewMessage(int64(timer.ChatID), reply)
 						msg.BaseChat.ReplyMarkup = getInlineKeyboard(button{isDone: false})
 						bot.Send(msg)
@@ -307,7 +294,6 @@ func main() {
 						},
 					},
 				}
-				// newText := strings.Replace(update.CallbackQuery.Message.Text, "⏰", "✓", 1)
 				editConfig := tgbotapi.EditMessageTextConfig{
 					BaseEdit: tgbotapi.BaseEdit{
 						ChatID:      update.CallbackQuery.Message.Chat.ID,
@@ -316,10 +302,8 @@ func main() {
 					},
 					Text: newMsgText,
 				}
-				// edit := tgbotapi.NewEditMessageReplyMarkup(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, markup)
 				log.Printf("%+v", editConfig)
 				bot.Send(editConfig)
-				// tgbotapi.NewEditMessageReplyMarkup(chatID int64, messageID int, replyMarkup tgbotapi.InlineKeyboardMarkup)
 			}
 			if update.Message == nil {
 				continue
