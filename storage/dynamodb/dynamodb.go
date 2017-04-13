@@ -159,7 +159,6 @@ func (dyn *DynamoStore) ListChatTimers(ChatID int64) (timers []timer.Timer, err 
 }
 
 func (dyn *DynamoStore) GetTimerByChatAndID(ChatID int64, ID string) (rtimer *timer.Timer, err error) {
-	// log.Printf("[listTimers]: ChatID: %d, ID: %s\n", ChatID, ID)
 	dyParams := &dynamodb.QueryInput{
 		TableName:              aws.String("HafenAlarms"),
 		IndexName:              aws.String("chatid-dt-index"),
@@ -173,7 +172,6 @@ func (dyn *DynamoStore) GetTimerByChatAndID(ChatID int64, ID string) (rtimer *ti
 				S: aws.String(ID),
 			},
 		},
-		Limit: aws.Int64(1),
 	}
 	resp, err := dyn.db.Query(dyParams)
 	if err != nil {

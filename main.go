@@ -409,8 +409,9 @@ func main() {
 				err := dbstore.DeleteTimer(ChatID, body)
 				if err != nil {
 					bot.Send(tgbotapi.NewMessage(ChatID, err.Error()))
+				} else {
+					bot.Send(tgbotapi.NewMessage(ChatID, "Done!"))
 				}
-				bot.Send(tgbotapi.NewMessage(ChatID, "Done!"))
 			} else {
 				reply := fmt.Sprintf("Unknown command: '%s'", command)
 				msg := tgbotapi.NewMessage(ChatID, reply)
