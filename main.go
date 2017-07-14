@@ -194,7 +194,9 @@ func parseDateTime(str string) (t time.Time, err error) {
 	// 2006-01-02 15:04:05 MST
 	fmt.Printf("parseDateTime\n")
 	fullFormats := []string{"20060102 15:04", "20060102 15:04:05", "02.01.2006 15:04", "02.01.2006 15:04:05"}
-	partFormats := []string{"15:04", "15:04:05"}
+	monthFormats := []string{"02.01 15:04", "0201 15:04"}
+	dayFormats := []string{"02 15:04"}
+	timeFormats := []string{"15:04", "15:04:05"}
 	for _, format := range fullFormats {
 		t, err := time.ParseInLocation(format, str, location)
 		if err == nil {
@@ -203,11 +205,33 @@ func parseDateTime(str string) (t time.Time, err error) {
 		}
 		fmt.Printf("err1: %s\n", err)
 	}
-	for _, format := range partFormats {
+	for _, format := range timeFormats {
 		tim, err := time.ParseInLocation(format, str, location)
 		if err == nil {
 			now := time.Now()
 			parsedToday := time.Date(now.Year(), now.Month(), now.Day(), tim.Hour(), tim.Minute(), tim.Second(), 0, location)
+			if time.Now().After(parsedToday) {
+				parsedToday = parsedToday.Add(24 * time.Hour)
+			}
+			return parsedToday, nil
+		}
+	}
+	for _, format := range dayFormats {
+		tim, err := time.ParseInLocation(format, str, location)
+		if err == nil {
+			now := time.Now()
+			parsedToday := time.Date(now.Year(), now.Month(), tim.Day(), tim.Hour(), tim.Minute(), tim.Second(), 0, location)
+			if time.Now().After(parsedToday) {
+				parsedToday = parsedToday.Add(24 * time.Hour)
+			}
+			return parsedToday, nil
+		}
+	}
+	for _, format := range monthFormats {
+		tim, err := time.ParseInLocation(format, str, location)
+		if err == nil {
+			now := time.Now()
+			parsedToday := time.Date(now.Year(), tim.Month(), tim.Day(), tim.Hour(), tim.Minute(), tim.Second(), 0, location)
 			if time.Now().After(parsedToday) {
 				parsedToday = parsedToday.Add(24 * time.Hour)
 			}
